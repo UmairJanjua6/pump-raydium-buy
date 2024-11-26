@@ -1,21 +1,25 @@
-const { Connection, PublicKey } = require('@solana/web3.js');
-require('dotenv').config();
+import { Connection, PublicKey, VersionedTransactionResponse } from '@solana/web3.js';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 // Define constants
-const CONNECTION_URL = process.env.CONNECTION_URL;
-const PUMP_FUN_MIGRATION_ACCOUNT = process.env.PUMP_FUN_MIGRATION_ACCOUNT;
+const CONNECTION_URL = process.env.CONNECTION_URL as string;
+const PUMP_FUN_MIGRATION_ACCOUNT = process.env.PUMP_FUN_MIGRATION_ACCOUNT as string;
 
-// Initialize connection with support for versioned transactions
+if (!CONNECTION_URL || !PUMP_FUN_MIGRATION_ACCOUNT) {
+  throw new Error('Environment variables CONNECTION_URL or PUMP_FUN_MIGRATION_ACCOUNT are not set.');
+}
+
+// Initialize connection
 const connection = new Connection(CONNECTION_URL, {
-  commitment: 'confirmed',
-  maxSupportedTransactionVersion: 0,
+  commitment: 'confirmed'
 });
 
 // Subscribe to logs for the migration account
 connection.onLogs(
   new PublicKey(PUMP_FUN_MIGRATION_ACCOUNT),
   async (log) => {
-    // Get transaction signature from log
     const signature = log.signature;
     if (!signature) {
       console.warn('No transaction signature found in log.');
@@ -24,10 +28,8 @@ connection.onLogs(
 
     console.log(`Processing transaction signature: ${signature}`);
 
-    // Fetch transaction details and check for `MintTo` log
     const hasMintToLog = await checkForMintToLog(signature);
     if (hasMintToLog) {
-      // If `MintTo` log is found, fetch and log the mint address for Account Index: 6
       const mintAddress = await getMintAddressFromAccountIndex6(signature);
       if (mintAddress) {
         console.log(`Mint Address for Account Index 6: ${mintAddress}`);
@@ -43,9 +45,8 @@ connection.onLogs(
 );
 
 // Function to check for `MintTo` log in transaction details
-async function checkForMintToLog(signature) {
+async function checkForMintToLog(signature: string): Promise<boolean> {
   try {
-    // Fetch transaction details with support for versioned transactions
     const transaction = await connection.getParsedTransaction(signature, {
       maxSupportedTransactionVersion: 0,
     });
@@ -55,9 +56,7 @@ async function checkForMintToLog(signature) {
       return false;
     }
 
-    // Inspect log messages for `MintTo`
-    const logMessages = transaction.meta.logMessages || [];
-
+    const logMessages = transaction.meta?.logMessages || [];
     return logMessages.some((message) => message.includes('Instruction: MintTo'));
   } catch (error) {
     console.error('Error fetching transaction details or parsing logs:', error);
@@ -66,9 +65,8 @@ async function checkForMintToLog(signature) {
 }
 
 // Function to fetch transaction details and log `mint` address for Account Index: 6
-async function getMintAddressFromAccountIndex6(signature) {
+async function getMintAddressFromAccountIndex6(signature: string): Promise<string | null> {
   try {
-    // Fetch the transaction details
     const transactionDetails = await connection.getTransaction(signature, {
       maxSupportedTransactionVersion: 0,
     });
@@ -78,7 +76,7 @@ async function getMintAddressFromAccountIndex6(signature) {
       return null;
     }
 
-    // Extract and log the mint address for Account Index: 6
+    // Handle VersionedTransactionResponse properly
     return extractMintAddress(transactionDetails, 6); // Account Index: 6
   } catch (error) {
     console.error('Error fetching transaction details:', error);
@@ -87,17 +85,15 @@ async function getMintAddressFromAccountIndex6(signature) {
 }
 
 // Function to extract `mint` address from the specified account index
-const extractMintAddress = (transactionDetails, accountIndex) => {
-  if (!transactionDetails?.meta?.postTokenBalances) {
+function extractMintAddress(transactionDetails: VersionedTransactionResponse, accountIndex: number): string | null {
+  const postTokenBalances = transactionDetails.meta?.postTokenBalances;
+  if (!postTokenBalances) {
     console.log('No postTokenBalances found in transaction details.');
     return null;
   }
 
-  const accountBalance = transactionDetails.meta.postTokenBalances.find(
-    (balance) => balance.accountIndex === accountIndex
-  );
-
-  return accountBalance ? accountBalance.mint : null;
-};
+  const accountBalance = postTokenBalances.find((balance) => balance.accountIndex === accountIndex);
+  return accountBalance?.mint || null;
+}
 
 console.log('Listening for token migrations...');

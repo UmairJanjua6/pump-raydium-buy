@@ -1,16 +1,19 @@
 {
   "name": "raydium",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/listener.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "ts-node listener.ts",
+    "build": "tsc",
+    "start": "node dist/listener.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@solana/web3.js": "^1.95.5",
     "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
   }
 }
